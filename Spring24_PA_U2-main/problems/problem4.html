@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CPSC 487/587</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.3.0/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quaternion@1.5.1/quaternion.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/numeric@1.2.6/numeric-1.2.6.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stats.js@0.17.0/build/stats.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+              "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+              "three/": "https://unpkg.com/three@0.160.0/"
+            }
+        }
+    </script>
+</head>
+<body>
+<script type="module">
+    import { ThreeEngine, get_default_lil_gui } from "../js/utils/utils_three.js";
+    import {mul_matrix_matrix} from "../js/utils/utils_math.js";
+    import {refresh_displays} from "../js/utils/utils_three.js";
+    // todo: recreate this visualization, demonstrating your understanding of U(1)
+    // todo: https://yale-cpsc-487-587-internal-djrakita-c95fa6c3239a481a48d29a6b0fd.gitlab.io/html/visualizations/point_mapping_2D_complex_numbers_isometry.html
+    // todo: (no need to draw the unit circle here)
+    // todo: or, feel free to come up with any visualization here that demonstrates your understanding of U(1)
+
+
+    let engine = ThreeEngine.new_default_2d();
+    engine.add_standard2Dshape_as_mesh_object(0x00eeff);
+
+    let settings = {
+        mesh_visible: true,
+        draw_points: true,
+        wireframe_visible: true,
+        point_size: 0.02,
+        theta: 0, // Rotation angle in radians
+    };
+
+    let gui = get_default_lil_gui();
+    gui.add(settings, 'draw_points').name('Draw Points');
+    gui.add(settings, 'wireframe_visible').name('Draw Wireframe');
+    gui.add(settings, 'mesh_visible').name('Draw Mesh');
+    gui.add(settings, 'point_size', 0.001, 0.03).name('Point Size');
+    gui.add(settings, 'theta', -3.14, 3.14).name('Rotation Theta');
+
+    let standard_points = engine.get_local_vertex_positions_of_mesh_object(0);
+    let wireframe_points = engine.get_local_vertex_positions_of_mesh_object_wireframe(0);
+
+    // Define the initial vectors
+    let red_vector = [1, 0]; // Initially pointing right
+    let green_vector = [0, 1]; // Initially pointing up
+
+    engine.animation_loop(function() {
+        let theta = settings.theta;
+        let rotation_matrix = [
+            [Math.cos(theta), -Math.sin(theta)],
+            [Math.sin(theta), Math.cos(theta)]
+        ];
+
+        let rotated_standard_points = standard_points.map(point => mul_matrix_matrix(rotation_matrix, point));
+        let rotated_wireframe_points = wireframe_points.map(point => mul_matrix_matrix(rotation_matrix, point));
+
+        // Rotate the red and green vectors
+        let rotated_red_vector = mul_matrix_matrix(rotation_matrix, red_vector);
+        let rotated_green_vector = mul_matrix_matrix(rotation_matrix, green_vector);
+
+        engine.update_vertex_positions_of_mesh_object(0, rotated_standard_points);
+        engine.update_vertex_positions_of_mesh_object_wireframe(0, rotated_wireframe_points);
+
+        if (settings.draw_points) {
+            rotated_standard_points.forEach(point => {
+                engine.draw_debug_sphere(point, settings.point_size, 0xeeee00);
+            });
+        }
+
+        // Draw the rotated vectors
+        engine.draw_debug_vector([0, 0], rotated_red_vector, undefined, undefined, 0xff0000); // Red vector
+        engine.draw_debug_vector([0, 0], rotated_green_vector, undefined, undefined, 0x00ff00); // Green vector
+
+        engine.mesh_objects[0].visible = settings.mesh_visible;
+        engine.set_mesh_object_wireframe_visibility(0, settings.wireframe_visible);
+    });
+
+
+</script>
+</body>
+</html>

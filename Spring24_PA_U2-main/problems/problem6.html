@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CPSC 487/587</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1/dist/lil-gui.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.3.0/math.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quaternion@1.5.1/quaternion.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/numeric@1.2.6/numeric-1.2.6.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stats.js@0.17.0/build/stats.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+              "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+              "three/": "https://unpkg.com/three@0.160.0/"
+            }
+        }
+    </script>
+</head>
+<body>
+<script type="module">
+    import { ThreeEngine, get_default_lil_gui } from "../js/utils/utils_three.js";
+    import { mul_matrix_matrix } from "../js/utils/utils_math.js";
+
+    // todo: recreate this visualization, demonstrating your understanding of displacement-based distance in SE(2)
+    // todo: https://yale-cpsc-487-587-internal-djrakita-c95fa6c3239a481a48d29a6b0fd.gitlab.io/html/visualizations/SE2_distance2.html
+    // todo: make sure you are using the displacement-based distance!
+    // todo: or, feel free to come up with any visualization here that demonstrates your understanding of SE(2) distance
+
+    let engine = ThreeEngine.new_default_2d(); // suppose this is some initialized ThreeEngine
+
+    let settings1 = {
+        theta1: 0, // Rotation angle for first pair in radians
+        translation_x1: 0,
+        translation_y1: 0,
+        displacement: 0, // To display the displacement in the GUI
+    };
+
+    let settings2 = {
+        theta2: 0, // Rotation angle for second pair in radians
+        translation_x2: 0,
+        translation_y2: 0,
+    };
+
+    let gui = get_default_lil_gui();
+
+    // Settings for the first pair of vectors
+    gui.add(settings1, 'theta1', -Math.PI, Math.PI).name('Rotation angle 1');
+    gui.add(settings1, 'translation_x1', -2, 2).name('Translate X 1');
+    gui.add(settings1, 'translation_y1', -2, 2).name('Translate Y 1');
+    gui.add(settings1, 'displacement').name('Displacement').listen();
+
+    // Settings for the second pair of vectors
+    gui.add(settings2, 'theta2', -Math.PI, Math.PI).name('Rotation angle 2');
+    gui.add(settings2, 'translation_x2', -2, 2).name('Translate X 2');
+    gui.add(settings2, 'translation_y2', -2, 2).name('Translate Y 2');
+
+    function updateDisplacement(settings1, settings2) {
+        // Step 1: Compute the displacement c = disp(a, b)
+        let a = [
+            [Math.cos(settings1.theta1), -Math.sin(settings1.theta1), settings1.translation_x1],
+            [Math.sin(settings1.theta1), Math.cos(settings1.theta1), settings1.translation_y1],
+            [0, 0, 1]  // SE(2) transformation matrix for pose a
+        ];
+        let b = [
+            [Math.cos(settings2.theta2), -Math.sin(settings2.theta2), settings2.translation_x2],
+            [Math.sin(settings2.theta2), Math.cos(settings2.theta2), settings2.translation_y2],
+            [0, 0, 1]  // SE(2) transformation matrix for pose b
+        ];
+
+        let aInverse = math.inv(a);
+        let c = math.multiply(aInverse, b);  // c = a^(-1) * b
+
+        // Extract rotation and translation components from c
+        let rotationAngle = Math.atan2(c[1][0], c[0][0]);
+        let translation = [c[0][2], c[1][2]];
+
+        // Step 2: Compute the logarithm in SE(2) specifically
+        // For small angles, use the approximation of the angle itself
+        // Check for numerical stability around small angles
+        if (Math.abs(rotationAngle) < 1e-6) {
+            rotationAngle = 0; //otherwise crashes and goes to infinity
+        }
+
+        let l_vee = [translation[0], translation[1], rotationAngle];  // l^vee in SE(2)
+
+        // Step 3: Compute the Euclidean norm of l^vee to get the distance
+        let distance = Math.sqrt(l_vee[0] * l_vee[0] + l_vee[1] * l_vee[1] + rotationAngle * rotationAngle);
+
+        // Update the displacement in settings
+        settings1.displacement = distance;
+    }
+
+
+    engine.animation_loop(function() {
+        updateDisplacement(settings1, settings2);
+
+        // Get the current values from the settings
+        let theta1 = settings1.theta1;
+        let translation_x1 = settings1.translation_x1;
+        let translation_y1 = settings1.translation_y1;
+
+        let theta2 = settings2.theta2;
+        let translation_x2 = settings2.translation_x2;
+        let translation_y2 = settings2.translation_y2;
+
+        // Calculate the rotated and translated endpoints for the first pair of vectors
+        let endpoint1a = [
+            Math.cos(theta1) + translation_x1,
+            Math.sin(theta1) + translation_y1,
+            0
+        ];
+        let endpoint1b = [
+            -Math.sin(theta1) + translation_x1,
+            Math.cos(theta1) + translation_y1,
+            0
+        ];
+
+        // Calculate the rotated and translated endpoints for the second pair of vectors
+        let endpoint2a = [
+            Math.cos(theta2) + translation_x2,
+            Math.sin(theta2) + translation_y2,
+            0
+        ];
+        let endpoint2b = [
+            -Math.sin(theta2) + translation_x2,
+            Math.cos(theta2) + translation_y2,
+            0
+        ];
+
+        // Draw the vectors as arrows on the screen using the provided method
+        engine.draw_debug_vector([translation_x1, translation_y1, 0], endpoint1a, 0.03, 0.15, 0x000000); // vector 1a
+        engine.draw_debug_vector([translation_x1, translation_y1, 0], endpoint1b, 0.03, 0.15, 0xe0ff00); // vector 1b
+
+        engine.draw_debug_vector([translation_x2, translation_y2, 0], endpoint2a, 0.03, 0.15, 0xff0000); // vector 2a
+        engine.draw_debug_vector([translation_x2, translation_y2, 0], endpoint2b, 0.03, 0.15, 0x00ff00); // vector 2b
+    });
+
+
+</script>
+</body>
+</html>
